@@ -145,7 +145,7 @@ sudo make samples
 
 ```bash
 # Pull the image
-docker pull skygenesis/aether-link:latest
+docker pull skygenesisenterprise/aether-link:latest
 
 # Run with default configuration
 docker run -d \
@@ -153,7 +153,7 @@ docker run -d \
   -p 5060:5060/udp \
   -p 5060:5060/tcp \
   -p 8088:8088/tcp \
-  skygenesis/aether-link:latest
+  skygenesisenterprise/aether-link:latest
 ```
 
 ### Basic Configuration
@@ -393,7 +393,7 @@ For security issues, please email: **security@skygenesisenterprise.com**
 version: '3.8'
 services:
   aether-link:
-    image: skygenesis/aether-link:latest
+    image: skygenesisenterprise/aether-link:latest
     ports:
       - "5060:5060/udp"
       - "5060:5060/tcp"
@@ -428,7 +428,7 @@ spec:
     spec:
       containers:
       - name: aether-link
-        image: skygenesis/aether-link:latest
+        image: skygenesisenterprise/aether-link:latest
         ports:
         - containerPort: 5060
         - containerPort: 8088
