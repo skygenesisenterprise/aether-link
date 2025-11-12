@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  aether-link:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aether-link
+    hostname: aether-link
+    ports:
+      # SIP ports
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "5061:5061/udp"
+      - "5061:5061/tcp"
+      # RTP ports
+      - "10000-20000:10000-20000/udp"
+      # Web interface
+      - "3000:3000/tcp"
+      # API port (if needed)
+      - "8080:8080/tcp"
+    volumes:
+      # Persistent configuration
+      - ./config/asterisk:/etc/asterisk:rw
+      - ./data/asterisk:/var/lib/asterisk:rw
+      - ./logs/asterisk:/var/log/asterisk:rw
+      - ./spool/asterisk:/var/spool/asterisk:rw
+      # Supervisor logs
+      - ./logs/supervisor:/var/log/supervisor:rw
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_AETHER_LINK_PROTOCOL=http
+      - NEXT_PUBLIC_AETHER_LINK_HOST=localhost
+      - NEXT_PUBLIC_AETHER_LINK_PORT=8080
+      - NEXT_PUBLIC_AETHER_LINK_WS_PROTOCOL=ws
+      - NEXT_PUBLIC_AETHER_LINK_WS_PORT=8080
+    networks:
+      - aether-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: PostgreSQL for persistent data
+  postgres:
+    image: postgres:15-alpine
+    container_name: aether-postgres
+    environment:
+      POSTGRES_DB: aether_link
+      POSTGRES_USER: aether
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aether123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - aether-network
+    restart: unless-stopped
+    ports:
+      - "5432:5432/tcp"
+
+  # Optional: Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: aether-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data:/data
+    networks:
+      - aether-network
+    restart: unless-stopped
+    ports:
+      - "6379:6379/tcp"
+
+networks:
+  aether-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

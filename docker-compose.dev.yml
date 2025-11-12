@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  aether-link-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: aether-link-dev
+    hostname: aether-link-dev
+    ports:
+      # SIP ports
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "5061:5061/udp"
+      - "5061:5061/tcp"
+      # RTP ports
+      - "10000-20000:10000-20000/udp"
+      # Web interface (development)
+      - "3000:3000/tcp"
+      # API port
+      - "8080:8080/tcp"
+    volumes:
+      # Mount source code for hot reload
+      ./client:/var/www/aether-link:rw
+      # Persistent configuration
+      - ./config/asterisk:/etc/asterisk:rw
+      - ./data/asterisk:/var/lib/asterisk:rw
+      - ./logs/asterisk:/var/log/asterisk:rw
+      - ./spool/asterisk:/var/spool/asterisk:rw
+      # Supervisor logs
+      - ./logs/supervisor:/var/log/supervisor:rw
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_AETHER_LINK_PROTOCOL=http
+      - NEXT_PUBLIC_AETHER_LINK_HOST=localhost
+      - NEXT_PUBLIC_AETHER_LINK_PORT=8080
+      - NEXT_PUBLIC_AETHER_LINK_WS_PROTOCOL=ws
+      - NEXT_PUBLIC_AETHER_LINK_WS_PORT=8080
+    networks:
+      - aether-dev-network
+    restart: unless-stopped
+    command: /bin/bash -c "cd /var/www/aether-link && npm install && npm run dev"
+
+  # Development database
+  postgres-dev:
+    image: postgres:15-alpine
+    container_name: aether-postgres-dev
+    environment:
+      POSTGRES_DB: aether_link_dev
+      POSTGRES_USER: aether
+      POSTGRES_PASSWORD: aether123
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - aether-dev-network
+    restart: unless-stopped
+    ports:
+      - "5433:5432/tcp"
+
+  # Development Redis
+  redis-dev:
+    image: redis:7-alpine
+    container_name: aether-redis-dev
+    command: redis-server --appendonly yes --requirepass redis123
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - aether-dev-network
+    restart: unless-stopped
+    ports:
+      - "6380:6379/tcp"
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: aether-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@aether-link.local
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80/tcp"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - aether-dev-network
+    restart: unless-stopped
+    depends_on:
+      - postgres-dev
+
+networks:
+  aether-dev-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  pgadmin_data:
+    driver: local

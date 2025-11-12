@@ -1,0 +1,98 @@
+# Development Dockerfile for Aether Link
+# Optimized for hot reload and development workflow
+
+FROM ubuntu:22.04 AS base
+
+# Environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV NODE_VERSION=20
+ENV ASTERISK_VERSION=20
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    # Asterisk runtime dependencies
+    libncurses5 \
+    libssl3 \
+    libxml2 \
+    libsqlite3-0 \
+    uuid-runtime \
+    libjansson4 \
+    libcurl4 \
+    libogg0 \
+    libvorbis0a \
+    libspeex1 \
+    libspeexdsp1 \
+    libsrtp2-1 \
+    libopus0 \
+    libpq5 \
+    libmysqlclient21 \
+    libunbound8 \
+    libedit2 \
+    liblua5.3-0 \
+    libpjsip2 \
+    pjproject \
+    # Node.js and development tools
+    curl \
+    gnupg \
+    ca-certificates \
+    build-essential \
+    python3 \
+    python3-pip \
+    # Process management
+    supervisor \
+    # Utilities
+    netcat-traditional \
+    vim \
+    htop \
+    wget \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - \
+    && apt-get install -y nodejs
+
+# Install Asterisk (using pre-compiled packages for faster dev setup)
+RUN apt-get update && apt-get install -y \
+    asterisk \
+    asterisk-config \
+    asterisk-modules \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create asterisk user
+RUN useradd -m -s /bin/bash asterisk
+
+# Create necessary directories
+RUN mkdir -p /var/www/aether-link \
+    && mkdir -p /var/log/asterisk \
+    && mkdir -p /var/run/asterisk \
+    && mkdir -p /var/log/supervisor
+
+# Set permissions
+RUN chown -R asterisk:asterisk /var/lib/asterisk \
+    && chown -R asterisk:asterisk /var/spool/asterisk \
+    && chown -R asterisk:asterisk /var/log/asterisk \
+    && chown -R asterisk:asterisk /var/run/asterisk \
+    && chown -R asterisk:asterisk /var/www/aether-link
+
+# Copy configuration files
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/asterisk.conf /etc/supervisor/conf.d/asterisk.conf
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+
+# Make entrypoint script executable
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Switch to asterisk user for development
+USER asterisk
+WORKDIR /var/www/aether-link
+
+# Expose ports
+EXPOSE 5060/udp 5060/tcp 5061/udp 5061/tcp 10000-20000/udp 3000/tcp 8080/tcp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Start with entrypoint (will be overridden in docker-compose for dev)
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
